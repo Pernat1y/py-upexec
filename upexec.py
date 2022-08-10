@@ -12,9 +12,9 @@ http_port = 8080
 # Use %input_file% and %output_file% to specify input/output files
 command = 'upx -9 %input_file% -o%output_file%'
 working_dir = './working_dir'
-timeout = 600
+timeout = 600  # Timeout for command
 DEBUG = True
-CLEANUP = True
+CLEANUP = True  # Remove both input and output file after sending back to client
 
 
 class http_server(http.server.BaseHTTPRequestHandler):
@@ -27,7 +27,8 @@ class http_server(http.server.BaseHTTPRequestHandler):
         self.send_header('content-type', 'text/html')
         self.end_headers()
         if DEBUG:
-            self.wfile.write(bytes(f'curl -X POST --data-binary "@/path/to/file" http://server:{http_port}', 'utf-8'))
+            self.wfile.write(bytes(f'curl --request POST --data-binary "@/path/to/file.in" ' +
+                                   f'--output /path/to/file.out http://server:{http_port}', 'utf-8'))
 
     def do_POST(self):
         # Create working dir and generate filenames
@@ -51,7 +52,13 @@ class http_server(http.server.BaseHTTPRequestHandler):
         # Replace stubs in command with actual files paths and run
         cmd = command.replace('%input_file%', upload_file)
         cmd = cmd.replace('%output_file%', result_file)
-        result = subprocess.run(cmd.split(), capture_output=True, text=True, timeout=timeout)
+
+        try:
+            result = subprocess.run(cmd.split(), capture_output=True, text=True, timeout=timeout)
+        except FileNotFoundError:
+            print('FileNotFoundError - check your "command" setting')
+            exit(1)
+
         if DEBUG:
             print(f'Exit code: {result.returncode}\n{result.stdout}\n{result.stderr}')
 
